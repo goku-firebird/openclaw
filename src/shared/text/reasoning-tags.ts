@@ -8,7 +8,7 @@ const THINKING_TAG_RE = /<\s*(\/?)\s*(?:think(?:ing)?|thought|antthinking)\b[^<>
 
 // Gemini 3.0 Flash sometimes outputs bare "thought" text markers without XML tags.
 // This regex matches standalone "thought" text (case-insensitive, word boundary).
-const BARE_THOUGHT_RE = /\bthought\b/gi;
+const BARE_THOUGHT_RE = /(?:^|\n)\s*thought\s*(?=\n|$)/gi;
 
 function applyTrim(value: string, mode: ReasoningTagTrim): string {
   if (mode === "none") {
@@ -94,9 +94,6 @@ export function stripReasoningTagsFromText(
   }
 
   // If no XML tags were processed, use the original cleaned text
-  if (!result) {
-    result = cleaned;
-  }
 
   // Strip bare "thought" text markers that some models (e.g., Gemini 3.0 Flash) output
   // without XML tags. Only remove standalone "thought" words, not those inside code blocks.

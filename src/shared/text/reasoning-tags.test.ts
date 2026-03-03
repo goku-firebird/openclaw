@@ -260,7 +260,7 @@ describe("stripReasoningTagsFromText", () => {
         stripReasoningTagsFromText(
           "The function `getThought()` returns a thought.",
         ),
-      ).toBe("The function `getThought()` returns a .");
+      ).toBe("The function `getThought()` returns a thought.");
 
       // 'thought' inside fenced code block should be preserved
       expect(
