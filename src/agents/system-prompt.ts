@@ -93,7 +93,10 @@ function buildOwnerIdentityLine(
   return `Authorized senders: ${displayOwnerNumbers.join(", ")}. These senders are allowlisted; do not assume they are the owner.`;
 }
 
-function buildTimeSection(params: { userTimezone?: string; userTime?: string }) {
+function buildTimeSection(params: { userTimezone?: string; userTime?: string }, isMinimal: boolean) {
+  if (isMinimal) {
+    return [];
+  }
   const sections = [];
   if (params.userTimezone) {
     sections.push(`Time zone: ${params.userTimezone}`);
@@ -567,7 +570,7 @@ export function buildAgentSystemPrompt(params: {
     ...buildTimeSection({
       userTimezone,
       userTime: params.userTime,
-    }),
+    }, isMinimal),
     "## Workspace Files (injected)",
     "These user-editable files are loaded by OpenClaw and included below in Project Context.",
     "",

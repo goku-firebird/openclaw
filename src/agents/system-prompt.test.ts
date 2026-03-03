@@ -415,12 +415,16 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Current time: Tuesday, March 3rd, 2026 — 10:45 AM");
   });
 
-  it("includes current date and time when provided (resolves issue #32363)", () => {
+    it("omits Current Date & Time section when userTime is not provided", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/clawd",
       userTimezone: "Asia/Shanghai",
-      userTime: "Tuesday, March 3rd, 2026 — 10:45 AM",
+      // userTime intentionally omitted
     });
+
+    expect(prompt).toContain("Time zone: Asia/Shanghai");
+    expect(prompt).not.toContain("Current time:");
+  });
 
     expect(prompt).toContain("## Current Date & Time");
     expect(prompt).toContain("Time zone: Asia/Shanghai");
