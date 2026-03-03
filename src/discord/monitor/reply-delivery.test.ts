@@ -282,3 +282,91 @@ describe("deliverDiscordReply", () => {
     );
   });
 });
+
+describe("retry on rate-limit / server errors", () => {
+  const runtime = {} as RuntimeEnv;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sendMessageDiscordMock.mockResolvedValue({ id: "1", channel_id: "ch" });
+    sendWebhookMessageDiscordMock.mockResolvedValue({ id: "1", channel_id: "ch" });
+  });
+
+  it("retries bot sender on 429 rate-limit and succeeds", async () => {
+    const rateLimitErr = Object.assign(new Error("rate limited"), {
+      status: 429,
+      retryAfter: 0.1,
+    });
+    sendMessageDiscordMock
+      .mockRejectedValueOnce(rateLimitErr)
+      .mockResolvedValueOnce({ id: "1", channel_id: "ch" });
+
+    await deliverDiscordReply({
+      replies: [{ text: "hello world" }],
+      target: "channel:123",
+      token: "token",
+      runtime,
+      textLimit: 2000,
+    });
+
+    expect(sendMessageDiscordMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries bot sender on 500 server error and succeeds", async () => {
+    const serverErr = Object.assign(new Error("internal"), { status: 500 });
+    sendMessageDiscordMock
+      .mockRejectedValueOnce(serverErr)
+      .mockResolvedValueOnce({ id: "1", channel_id: "ch" });
+
+    await deliverDiscordReply({
+      replies: [{ text: "hello world" }],
+      target: "channel:123",
+      token: "token",
+      runtime,
+      textLimit: 2000,
+    });
+
+    expect(sendMessageDiscordMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry on 403 forbidden", async () => {
+    const forbiddenErr = Object.assign(new Error("forbidden"), { status: 403 });
+    sendMessageDiscordMock.mockRejectedValue(forbiddenErr);
+
+    await expect(
+      deliverDiscordReply({
+        replies: [{ text: "hello world" }],
+        target: "channel:123",
+        token: "token",
+        runtime,
+        textLimit: 2000,
+      }),
+    ).rejects.toThrow("forbidden");
+
+    expect(sendMessageDiscordMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("delivers all chunks when first chunk hits 429 then succeeds", async () => {
+    const longText = "a".repeat(1500) + "\n\n" + "b".repeat(1500);
+    const rateLimitErr = Object.assign(new Error("rate limited"), {
+      status: 429,
+      retryAfter: 0.1,
+    });
+
+    sendMessageDiscordMock
+      .mockRejectedValueOnce(rateLimitErr) // chunk 1 fails
+      .mockResolvedValueOnce({ id: "1", channel_id: "ch" }) // chunk 1 retry succeeds
+      .mockResolvedValueOnce({ id: "2", channel_id: "ch" }); // chunk 2 succeeds
+
+    await deliverDiscordReply({
+      replies: [{ text: longText }],
+      target: "channel:123",
+      token: "token",
+      runtime,
+      textLimit: 2000,
+    });
+
+    // 3 calls total: 1 fail + 1 retry success + 1 second chunk
+    expect(sendMessageDiscordMock).toHaveBeenCalledTimes(3);
+  });
+});

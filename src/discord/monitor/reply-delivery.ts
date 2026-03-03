@@ -4,10 +4,66 @@ import type { ChunkMode } from "../../auto-reply/chunk.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import { loadConfig } from "../../config/config.js";
 import type { MarkdownTableMode, ReplyToMode } from "../../config/types.base.js";
+import { retryAsync } from "../../infra/retry.js";
+import { logWarn } from "../../logger.js";
 import { convertMarkdownTables } from "../../markdown/tables.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import { chunkDiscordTextWithMode } from "../chunk.js";
 import { sendMessageDiscord, sendVoiceMessageDiscord, sendWebhookMessageDiscord } from "../send.js";
+
+// ---------------------------------------------------------------------------
+// Retry helpers for Discord HTTP sends (429 rate-limit / 5xx server errors)
+// ---------------------------------------------------------------------------
+
+function extractHttpStatus(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null) {
+    return undefined;
+  }
+  const status = (err as { status?: unknown }).status;
+  return typeof status === "number" && Number.isFinite(status) ? status : undefined;
+}
+
+function extractRetryAfterMs(err: unknown): number | undefined {
+  if (typeof err !== "object" || err === null) {
+    return undefined;
+  }
+  // @buape/carbon RateLimitError exposes `retryAfter` in seconds.
+  const retryAfter = (err as { retryAfter?: unknown }).retryAfter;
+  if (typeof retryAfter === "number" && retryAfter > 0) {
+    return Math.ceil(retryAfter * 1000);
+  }
+  return undefined;
+}
+
+function isDiscordRetryableError(err: unknown): boolean {
+  const status = extractHttpStatus(err);
+  if (status === undefined) {
+    return false;
+  }
+  return status === 429 || status >= 500;
+}
+
+const DISCORD_SEND_RETRY_CONFIG = {
+  attempts: 3,
+  minDelayMs: 1_000,
+  maxDelayMs: 10_000,
+  jitter: 0.2,
+} as const;
+
+async function sendWithDiscordRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  return retryAsync(fn, {
+    ...DISCORD_SEND_RETRY_CONFIG,
+    label,
+    shouldRetry: (err) => isDiscordRetryableError(err),
+    retryAfterMs: (err) => extractRetryAfterMs(err),
+    onRetry: (info) => {
+      const status = extractHttpStatus(info.err);
+      logWarn(
+        `discord/${label}: Retry ${info.attempt}/${info.maxAttempts} after HTTP ${status ?? "??"} (delay ${info.delayMs}ms)`,
+      );
+    },
+  });
+}
 
 export type DiscordThreadBindingLookupRecord = {
   accountId: string;
@@ -89,28 +145,42 @@ async function sendDiscordChunkWithFallback(params: {
   }
   const text = params.text;
   const binding = params.binding;
-  if (binding?.webhookId && binding?.webhookToken) {
+  const webhookId = binding?.webhookId;
+  const webhookToken = binding?.webhookToken;
+  if (webhookId && webhookToken && binding) {
     try {
-      await sendWebhookMessageDiscord(text, {
-        webhookId: binding.webhookId,
-        webhookToken: binding.webhookToken,
-        accountId: binding.accountId,
-        threadId: binding.threadId,
-        replyTo: params.replyTo,
-        username: params.username,
-        avatarUrl: params.avatarUrl,
-      });
+      await sendWithDiscordRetry(
+        () =>
+          sendWebhookMessageDiscord(text, {
+            webhookId,
+            webhookToken,
+            accountId: binding.accountId,
+            threadId: binding.threadId,
+            replyTo: params.replyTo,
+            username: params.username,
+            avatarUrl: params.avatarUrl,
+          }),
+        "webhook-chunk",
+      );
       return;
-    } catch {
-      // Fall through to the standard bot sender path.
+    } catch (err) {
+      // Only fall through to bot sender for non-retryable errors.
+      // Retryable errors (429/5xx) were already retried above.
+      if (isDiscordRetryableError(err)) {
+        throw err;
+      }
     }
   }
-  await sendMessageDiscord(params.target, text, {
-    token: params.token,
-    rest: params.rest,
-    accountId: params.accountId,
-    replyTo: params.replyTo,
-  });
+  await sendWithDiscordRetry(
+    () =>
+      sendMessageDiscord(params.target, text, {
+        token: params.token,
+        rest: params.rest,
+        accountId: params.accountId,
+        replyTo: params.replyTo,
+      }),
+    "bot-chunk",
+  );
 }
 
 async function sendAdditionalDiscordMedia(params: {
@@ -123,13 +193,17 @@ async function sendAdditionalDiscordMedia(params: {
 }) {
   for (const mediaUrl of params.mediaUrls) {
     const replyTo = params.resolveReplyTo();
-    await sendMessageDiscord(params.target, "", {
-      token: params.token,
-      rest: params.rest,
-      mediaUrl,
-      accountId: params.accountId,
-      replyTo,
-    });
+    await sendWithDiscordRetry(
+      () =>
+        sendMessageDiscord(params.target, "", {
+          token: params.token,
+          rest: params.rest,
+          mediaUrl,
+          accountId: params.accountId,
+          replyTo,
+        }),
+      "media-chunk",
+    );
   }
 }
 
