@@ -616,24 +616,7 @@ export function createGatewayHttpServer(opts: {
             }),
         });
       }
-      // Plugin routes run before canvasHost so explicitly registered
-      // plugin endpoints (e.g., Google Chat handlers) take precedence and
-      // don't get shadowed by canvas catch-all routes that return 405.
-      requestStages.push(
-        ...buildPluginRequestStages({
-          req,
-          res,
-          requestPath,
-          mattermostSlashCallbackPaths,
-          pluginPathContext,
-          handlePluginRequest,
-          shouldEnforcePluginGatewayAuth,
-          resolvedAuth,
-          trustedProxies,
-          allowRealIpFallback,
-          rateLimiter,
-        }),
-      );
+      
       if (canvasHost) {
         requestStages.push({
           name: "canvas-auth",
@@ -651,6 +634,8 @@ export function createGatewayHttpServer(opts: {
               malformedScopedPath: scopedCanvas.malformedScopedPath,
               rateLimiter,
             });
+
+
             if (!ok.ok) {
               sendGatewayAuthFailure(res, ok);
               return true;
@@ -667,6 +652,25 @@ export function createGatewayHttpServer(opts: {
           run: () => canvasHost.handleHttpRequest(req, res),
         });
       }
+
+      // Plugin routes are checked after specific canvas handlers. This ensures
+      // that canvas authentication (precedence) is maintained, while allowing
+      // explicitly registered plugin endpoints to be resolved before the final 404.
+      requestStages.push(
+        ...buildPluginRequestStages({
+          req,
+          res,
+          requestPath,
+          mattermostSlashCallbackPaths,
+          pluginPathContext,
+          handlePluginRequest,
+          shouldEnforcePluginGatewayAuth,
+          resolvedAuth,
+          trustedProxies,
+          allowRealIpFallback,
+          rateLimiter,
+        }),
+      );
 
       if (controlUiEnabled) {
         requestStages.push({
