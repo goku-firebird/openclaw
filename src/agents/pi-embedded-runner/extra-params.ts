@@ -530,7 +530,7 @@ function isGroqModel(model: { provider?: unknown; baseUrl?: unknown }): boolean 
   }
   if (typeof model.baseUrl === "string") {
     const baseUrl = model.baseUrl.toLowerCase();
-    return baseUrl.includes("groq.com") || baseUrl.includes("api.groq");
+    return baseUrl.includes("groq.com") || baseUrl.includes(".groq.");
   }
   return false;
 }
@@ -862,6 +862,11 @@ function createGroqReasoningWrapper(
               payloadObj.reasoning_effort = normalized;
               log.debug(
                 `normalized Groq reasoning_effort from "${currentValue}" to "${normalized}" (${model.id})`,
+              );
+            } else if (thinkingLevel === "off" && currentValue === "default") {
+              payloadObj.reasoning_effort = "none";
+              log.debug(
+                `normalized Groq reasoning_effort from "default" to "none" for thinkingLevel=off (${model.id})`,
               );
             }
           }
