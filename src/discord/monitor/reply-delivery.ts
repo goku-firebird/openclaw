@@ -28,7 +28,9 @@ function extractRetryAfterMs(err: unknown): number | undefined {
     return undefined;
   }
   // @buape/carbon RateLimitError exposes `retryAfter` in seconds.
-  const retryAfter = (err as { retryAfter?: unknown }).retryAfter;
+  // Discord REST API may also use `retry_after` (snake_case).
+  const obj = err as Record<string, unknown>;
+  const retryAfter = obj.retryAfter ?? obj.retry_after;
   if (typeof retryAfter === "number" && retryAfter > 0) {
     return Math.ceil(retryAfter * 1000);
   }
@@ -43,7 +45,7 @@ function isDiscordRetryableError(err: unknown): boolean {
   return status === 429 || status >= 500;
 }
 
-const DISCORD_SEND_RETRY_CONFIG = {
+export const DISCORD_SEND_RETRY_CONFIG = {
   attempts: 3,
   minDelayMs: 1_000,
   maxDelayMs: 10_000,
@@ -160,7 +162,7 @@ async function sendDiscordChunkWithFallback(params: {
             username: params.username,
             avatarUrl: params.avatarUrl,
           }),
-        "webhook-chunk",
+        `webhook-chunk:${params.target}`,
       );
       return;
     } catch (err) {
