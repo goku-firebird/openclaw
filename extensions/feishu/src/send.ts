@@ -79,8 +79,9 @@ function parseInteractiveCardContent(parsed: unknown): string {
       continue;
     }
     // Handle header tag within elements (some card formats use this)
-    if (item.tag === "header" && typeof item.title?.content === "string") {
-      texts.push(item.title.content);
+    if (item.tag === "header" && !headerTitle && typeof item.title?.content === "string") {
+      texts.push(item.title.content.trim());
+      continue;
     }
   }
   return texts.join("\n").trim() || "[Interactive Card]";
