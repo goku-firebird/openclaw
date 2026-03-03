@@ -1192,6 +1192,70 @@ describe("handleFeishuMessage command authorization", () => {
     );
   });
 
+  it("passes guildId for group messages in routing context", async () => {
+    mockShouldComputeCommandAuthorized.mockReturnValue(false);
+
+    const cfg: ClawdbotConfig = {
+      channels: {
+        feishu: {
+          groups: {
+            "oc-group": {
+              requireMention: false,
+            },
+          },
+        },
+      },
+    } as ClawdbotConfig;
+
+    const event: FeishuMessageEvent = {
+      sender: { sender_id: { open_id: "ou-group-user" } },
+      message: {
+        message_id: "msg-group-id",
+        chat_id: "oc-group",
+        chat_type: "group",
+        message_type: "text",
+        content: JSON.stringify({ text: "test guildId" }),
+      },
+    };
+
+    await dispatchMessage({ cfg, event });
+
+    expect(mockResolveAgentRoute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guildId: "oc-group",
+      }),
+    );
+  });
+
+  it("omits guildId for direct messages in routing context", async () => {
+    mockShouldComputeCommandAuthorized.mockReturnValue(false);
+
+    const cfg: ClawdbotConfig = {
+      channels: {
+        feishu: {},
+      },
+    } as ClawdbotConfig;
+
+    const event: FeishuMessageEvent = {
+      sender: { sender_id: { open_id: "ou-dm-user" } },
+      message: {
+        message_id: "msg-dm-id",
+        chat_id: "oc-dm",
+        chat_type: "p2p",
+        message_type: "text",
+        content: JSON.stringify({ text: "test direct" }),
+      },
+    };
+
+    await dispatchMessage({ cfg, event });
+
+    expect(mockResolveAgentRoute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guildId: undefined,
+      }),
+    );
+  });
+
   it("routes topic sessions and parentPeer when groupSessionScope=group_topic_sender", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
