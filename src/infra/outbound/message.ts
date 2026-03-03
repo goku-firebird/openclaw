@@ -57,13 +57,23 @@ type MessageSendParams = {
   silent?: boolean;
 };
 
-export type MessageSendResult = {
-  channel: string;
-  to: string;
-  via: "direct" | "gateway";
-  mediaUrl: string | null;
-  mediaUrls?: string[];
-  result?: OutboundDeliveryResult | { messageId: string };
+export type MessageSendResult =
+  | {
+      channel: string;
+      to: string;
+      via: "direct" | "gateway";
+      mediaUrl: string | null;
+      mediaUrls?: string[];
+      result?: OutboundDeliveryResult | { messageId: string };
+      dryRun?: boolean;
+      delivered?: boolean;
+      discarded?: boolean;
+    }
+  | {
+      ok: true;
+      delivered: false;
+      discarded: true;
+    };
   dryRun?: boolean;
 };
 
