@@ -298,10 +298,15 @@ describe("retry on rate-limit / server errors", () => {
   });
 
   it("retries bot sender on 429 rate-limit and succeeds", async () => {
+    vi.useFakeTimers();
+    try {
     const rateLimitErr = Object.assign(new Error("rate limited"), {
       status: 429,
       retryAfter: 0.1,
-    });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
     sendMessageDiscordMock
       .mockRejectedValueOnce(rateLimitErr)
       .mockResolvedValueOnce({ id: "1", channel_id: "ch" });
