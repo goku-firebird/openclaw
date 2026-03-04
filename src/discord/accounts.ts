@@ -22,6 +22,10 @@ export const resolveDefaultDiscordAccountId = resolveDefaultAccountId;
 const log = createSubsystemLogger("discord/accounts");
 const warnedEmptyGuildOverrides = new Set<string>();
 
+export function resetWarnedEmptyGuildOverrides() {
+  warnedEmptyGuildOverrides.clear();
+}
+
 export function resetDiscordAccountWarningStateForTests(): void {
   warnedEmptyGuildOverrides.clear();
 }
@@ -57,8 +61,9 @@ function mergeDiscordAccountConfig(cfg: OpenClawConfig, accountId: string): Disc
 
   // Preserve parent guild allowlist when an account sets allowlist mode but leaves
   // guilds empty (for example `guilds: {}`), which otherwise overrides to deny-all.
+  const accountGroupPolicy = (account as DiscordAccountConfig).groupPolicy;
   if (
-    merged.groupPolicy === "allowlist" &&
+    accountGroupPolicy === "allowlist" &&
     accountExplicitlyOverridesGuilds &&
     accountGuildsEmpty &&
     parentGuildsConfigured
