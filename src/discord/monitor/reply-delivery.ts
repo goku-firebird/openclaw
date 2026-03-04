@@ -19,8 +19,25 @@ function extractHttpStatus(err: unknown): number | undefined {
   if (typeof err !== "object" || err === null) {
     return undefined;
   }
+  // @buape/carbon DiscordError exposes `.status` directly.
   const status = (err as { status?: unknown }).status;
-  return typeof status === "number" && Number.isFinite(status) ? status : undefined;
+  if (typeof status === "number" && Number.isFinite(status)) {
+    return status;
+  }
+  // Webhook errors throw plain Error with status in message, e.g.
+  // "Discord webhook send failed (429: ...)" — extract the HTTP code.
+  const statusCode = (err as { statusCode?: unknown }).statusCode;
+  if (typeof statusCode === "number" && Number.isFinite(statusCode)) {
+    return statusCode;
+  }
+  const message = (err as { message?: unknown }).message;
+  if (typeof message === "string") {
+    const match = message.match(/\((\d{3})/);
+    if (match) {
+      return Number(match[1]);
+    }
+  }
+  return undefined;
 }
 
 function extractRetryAfterMs(err: unknown): number | undefined {
@@ -181,7 +198,7 @@ async function sendDiscordChunkWithFallback(params: {
         accountId: params.accountId,
         replyTo: params.replyTo,
       }),
-    "bot-chunk",
+    `bot-chunk:${params.target}`,
   );
 }
 
@@ -204,7 +221,7 @@ async function sendAdditionalDiscordMedia(params: {
           accountId: params.accountId,
           replyTo,
         }),
-      "media-chunk",
+      `media-chunk:${params.target}`,
     );
   }
 }
