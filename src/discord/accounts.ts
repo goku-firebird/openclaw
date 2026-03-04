@@ -22,6 +22,10 @@ export const resolveDefaultDiscordAccountId = resolveDefaultAccountId;
 const log = createSubsystemLogger("discord/accounts");
 const warnedEmptyGuildOverrides = new Set<string>();
 
+export function resetWarnedEmptyGuildOverrides() {
+  warnedEmptyGuildOverrides.clear();
+}
+
 export function resetDiscordAccountWarningStateForTests(): void {
   warnedEmptyGuildOverrides.clear();
 }
