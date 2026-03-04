@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeEnv } from "../../runtime.js";
 import { deliverDiscordReply } from "./reply-delivery.js";
 import {
@@ -287,9 +287,14 @@ describe("retry on rate-limit / server errors", () => {
   const runtime = {} as RuntimeEnv;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
     sendMessageDiscordMock.mockResolvedValue({ id: "1", channel_id: "ch" });
     sendWebhookMessageDiscordMock.mockResolvedValue({ id: "1", channel_id: "ch" });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("retries bot sender on 429 rate-limit and succeeds", async () => {
@@ -301,13 +306,15 @@ describe("retry on rate-limit / server errors", () => {
       .mockRejectedValueOnce(rateLimitErr)
       .mockResolvedValueOnce({ id: "1", channel_id: "ch" });
 
-    await deliverDiscordReply({
+    const promise = deliverDiscordReply({
       replies: [{ text: "hello world" }],
       target: "channel:123",
       token: "token",
       runtime,
       textLimit: 2000,
     });
+    await vi.advanceTimersByTimeAsync(15_000);
+    await promise;
 
     expect(sendMessageDiscordMock).toHaveBeenCalledTimes(2);
   });
@@ -318,13 +325,15 @@ describe("retry on rate-limit / server errors", () => {
       .mockRejectedValueOnce(serverErr)
       .mockResolvedValueOnce({ id: "1", channel_id: "ch" });
 
-    await deliverDiscordReply({
+    const promise = deliverDiscordReply({
       replies: [{ text: "hello world" }],
       target: "channel:123",
       token: "token",
       runtime,
       textLimit: 2000,
     });
+    await vi.advanceTimersByTimeAsync(15_000);
+    await promise;
 
     expect(sendMessageDiscordMock).toHaveBeenCalledTimes(2);
   });
@@ -358,13 +367,15 @@ describe("retry on rate-limit / server errors", () => {
       .mockResolvedValueOnce({ id: "1", channel_id: "ch" }) // chunk 1 retry succeeds
       .mockResolvedValueOnce({ id: "2", channel_id: "ch" }); // chunk 2 succeeds
 
-    await deliverDiscordReply({
+    const promise = deliverDiscordReply({
       replies: [{ text: longText }],
       target: "channel:123",
       token: "token",
       runtime,
       textLimit: 2000,
     });
+    await vi.advanceTimersByTimeAsync(15_000);
+    await promise;
 
     // 3 calls total: 1 fail + 1 retry success + 1 second chunk
     expect(sendMessageDiscordMock).toHaveBeenCalledTimes(3);

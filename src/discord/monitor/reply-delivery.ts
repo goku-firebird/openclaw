@@ -330,13 +330,17 @@ export async function deliverDiscordReply(params: {
     }
 
     const replyTo = resolveReplyTo();
-    await sendMessageDiscord(params.target, text, {
-      token: params.token,
-      rest: params.rest,
-      mediaUrl: firstMedia,
-      accountId: params.accountId,
-      replyTo,
-    });
+    await sendWithDiscordRetry(
+      () =>
+        sendMessageDiscord(params.target, text, {
+          token: params.token,
+          rest: params.rest,
+          mediaUrl: firstMedia,
+          accountId: params.accountId,
+          replyTo,
+        }),
+      `media-text:${params.target}`,
+    );
     deliveredAny = true;
     await sendAdditionalDiscordMedia({
       target: params.target,
