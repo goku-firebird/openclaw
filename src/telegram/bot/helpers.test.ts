@@ -413,7 +413,7 @@ describe("hasBotMention (issue #19883: forum topic mention detection)", () => {
     expect(hasBotMention(msg, "MyBot")).toBe(true);
   });
 
-  it("detects mention via entity when entity slice has different case than botUsername", () => {
+  it("detects mention when entity slice has different case than botUsername (exercises text-includes path)", () => {
     // User types '@MYBOT' (all caps). text lowercased ('@mybot') vs '@MyBot' → false.
     // Entity slice '.slice(6,12)' = '@MYBOT', lowercased = '@mybot', vs '@MyBot' → false on buggy main.
     const msg = forumMsg("hello @MYBOT here", [{ type: "mention", offset: 6, length: 6 }]);
