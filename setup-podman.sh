@@ -191,11 +191,11 @@ if run_as_openclaw test -f "$ENV_FILE"; then
     printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "$TOKEN" | run_as_openclaw tee -a "$ENV_FILE" >/dev/null
     echo "Added OPENCLAW_GATEWAY_TOKEN to $ENV_FILE."
   fi
-  run_as_openclaw chmod 644 "$ENV_FILE" 2>/dev/null || true
+  run_as_openclaw chmod 600 "$ENV_FILE" 2>/dev/null || true
 else
   TOKEN="$(generate_token_hex_32)"
   printf 'OPENCLAW_GATEWAY_TOKEN=%s\n' "$TOKEN" | run_as_openclaw tee "$ENV_FILE" >/dev/null
-  run_as_openclaw chmod 644 "$ENV_FILE" 2>/dev/null || true
+  run_as_openclaw chmod 600 "$ENV_FILE" 2>/dev/null || true
   echo "Created $ENV_FILE with new token."
 fi
 
